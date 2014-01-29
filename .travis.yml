@@ -1,0 +1,15 @@
+before_install:
+  - yes | sudo add-apt-repository ppa:hansjorg/rust
+  - sudo apt-get update
+install:
+  - sudo apt-get install rust-nightly
+script:
+  - git clone http://github.com/colemickens/pcapfe
+  - cd pcapfe
+  - rustc lib.rs
+  - cd ..
+  - git clone http://github.com/colemickens/pktutil
+  - cd pktutil
+  - rustc lib.rs
+  - cd ..
+  - rustc pcapfe.rs -L ./pcapfe -L ./pktutil
