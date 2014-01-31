@@ -4,6 +4,13 @@ before_install:
 install:
   - sudo apt-get install rust-nightly
 script:
-  - (git clone http://github.com/colemickens/pcapfe; cd pcapfe; make)
-  - (git clone http://github.com/colemickens/pktutil; cd pktutil; make)
+  - git clone http://github.com/colemickens/pcapfe;
+  - cd pcapfe
+  - make
+  - cd ..
+  - git clone http://github.com/colemickens/pktutil
+  - cd pktutil
+  - make
+  - make test
+  - cd ..
   - rustc pcapfe.rs -L ./pcapfe -L ./pktutil
