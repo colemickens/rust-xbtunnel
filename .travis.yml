@@ -13,4 +13,4 @@ script:
   - make
   - make test
   - cd ..
-  - rustc pcapfe.rs -L ./pcapfe -L ./pktutil
+  - rustc main.rs -L ./pcapfe -L ./pktutil

@@ -3,7 +3,6 @@ all:
 	(cd ../pktutil; rustc lib.rs)
 	rustc main.rs -L ../pcapfe/ -L ../pktutil
 
-
 host:
 	sudo ./tunnelrs --dev enp3s0 --host
 

@@ -26,9 +26,7 @@ use pcapfe::*;
 
 #[start]
 fn start(argc: int, argv: **u8) -> int {
-    do native::start(argc, argv) {
-        main();
-    }
+    native::start(argc, argv,  main)
 }
 
 static BROADCAST: &'static[u8] = &[0xff, 0xff, 0xff, 0xff, 0xff, 0xff];
@@ -174,7 +172,7 @@ fn packet_capture_inject_loop(dev: &str, capture_chan: Chan<Packet>, inject_port
     println!("postspawn2");
 }
 
-fn main() {
+fn main() -> () {
     let args = os::args();
     let opts = ~[
         optflag("host"),
