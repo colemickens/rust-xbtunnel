@@ -14,6 +14,7 @@ use std::comm::*;
 
 use std::hashmap::*;
 use std::io::net::ip;
+use std::io::net::ip::Ipv4Addr;
 use std::io::net::udp;
 use std::io::net::udp::{UdpSocket};
 use std::os;
@@ -35,46 +36,44 @@ struct Packet { src_mac: ~[u8], dst_mac: ~[u8], payload: ~[u8] }
 impl Packet {
     fn as_raw_packet(&self) -> ~[u8] {
         let eth_hdr = EthernetHeader{
-            dst_mac:   self.dst_mac.to_owned(),
-            src_mac:   self.src_mac.to_owned(),
+            dst_mac:   self.dst_mac.clone(),
+            src_mac:   self.src_mac.clone(),
             ethertype: Ethertype_IP,
         };
 
-        let ip_hdr = Ipv4Header{
+        let mut udp_hdr = UdpHeader{
+            src_port:  3074,
+            dst_port:  3074,
+            length:    00,
+            checksum:  0x0000, // remove this cheat
+        };
+
+        udp_hdr.length = (self.payload.len() + 8) as u16;
+
+        let mut ip_hdr = Ipv4Header{
             version:       4,
-            total_len:     0,
             diff_services: 0x00,
             ecn:           0x00,
-            id:            0x0000, // set this dynamically -- is this transparently copied or what?
+            total_len:     00,
+            id:            0x0000, // DOES THIS MATTER? COULD BE MAJOR BUG, DONT REMEMBER
             flags:         0x02,
             frag_offset:   0,
             ttl:           64,
-            checksum:      0x0000, // will have to write the functions to calculate it
-            src_ip:        ip::Ipv4Addr(0, 0, 0, 1),
-            dst_ip:        ip::Ipv4Addr(0, 0, 0, 1),
-            ihl:           5, // none?
+            checksum:      0x0000, // remove this cheat
+            src_ip:        Ipv4Addr(0, 0, 0, 1),
+            dst_ip:        Ipv4Addr(0, 0, 0, 1),
+            ihl:           5,
             protocol:      UserDatagram,
             options:       ~[],
         };
 
-        let udp_hdr = UdpHeader{
-            src_port:  3074,
-            dst_port:  3074,
-            length:    2, // set this
-            checksum:  0x0000,
-        };
-        
+        ip_hdr.checksum = ip_hdr.checksum();    
+        udp_hdr.checksum = udp_hdr.ipv4_checksum(ip_hdr.src_ip, ip_hdr.dst_ip, self.payload);
+
         let mut res_bytes = eth_hdr.as_bytes();
         res_bytes.push_all(ip_hdr.as_bytes());
         res_bytes.push_all(udp_hdr.as_bytes());
         res_bytes.push_all(self.payload);
-
-        // make new fns that go from eth_hdr -> eth_hdr with proper len and checksum
-        // (or take params and then generate a complete one or both?)
-
-        // TODO: make this into an api-able thing better what yeah.....
-
-
         res_bytes
     }
 
@@ -115,7 +114,6 @@ fn packet_capture_inject_loop(dev: &str, capture_chan: Chan<Packet>, inject_port
     let dev1: ~str = dev.to_str();
     let dev2: ~str = dev.to_str();
 
-    println!("prespawn1");
     spawn(proc(){
         let cap_dev = pcap_open_dev(dev1).unwrap();
         let mut filter_str = ~"host 0.0.0.1 && udp";
@@ -128,16 +126,13 @@ fn packet_capture_inject_loop(dev: &str, capture_chan: Chan<Packet>, inject_port
             match cap_dev.next_packet_ex() {
                 Ok(pcap_pkt) => match from_pcap(pcap_pkt.payload) {
                     Some(pkt) => {
-                        println!("got pcap packet");
                         capture_chan.send(pkt);
                     },
                     None => {
                         println!("bad pkt");
                     },
                 },
-                Err(NextEx_Timeout) => {
-                    println!("timeout");
-                },
+                Err(NextEx_Timeout) => { },
                 Err(t) => {
                     fail!(format!("{:?}", t));
                 }
@@ -158,10 +153,8 @@ fn packet_capture_inject_loop(dev: &str, capture_chan: Chan<Packet>, inject_port
             }
         }
     });
-    println!("postspawn1");
 
-    println!("prespawn2");
-    spawn(proc(){
+    spawn(proc(){ // HELP: should I just put this in the "select" loop above on line 83?
         let cap_dev = pcap_open_dev(dev2).unwrap();
         loop {
             let pkt = inject_port.recv();
@@ -169,7 +162,6 @@ fn packet_capture_inject_loop(dev: &str, capture_chan: Chan<Packet>, inject_port
             println!("inject res {}", res);
         }
     });
-    println!("postspawn2");
 }
 
 fn main() -> () {
@@ -200,9 +192,7 @@ fn main() -> () {
 
     let (pcap_update_port, pcap_update_chan): (Port<~[u8]>, Chan<~[u8]>) = Chan::new();
     
-    println!("inject_loop starting");
     packet_capture_inject_loop(dev, capture_chan, inject_port, pcap_update_port);
-    println!("inject_loop started");
 
     if args.opt_present("host") {
         let (xbox_update_port, xbox_update_chan): (Port<(~[u8], ip::SocketAddr)>, Chan<(~[u8], ip::SocketAddr)>) = Chan::new();
@@ -250,7 +240,6 @@ fn main() -> () {
                     Disconnected => { return; },
                     Empty => {},
                 }
-                //println!(".");
             }
         });
 
@@ -298,11 +287,6 @@ fn main() -> () {
         { // the udp send loop (read from capture_chan)
             let udp_sock = udp_send_arc.get();
             loop {
-                // TODO: Remove this silliness
-                unsafe { (*udp_sock).sendto([0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,0xde, 0xad, 0xbe, 0xef,], saddr); }
-                println!("sent something as a test");
-                //
-
                 let pkt = capture_port.recv();
                 let pkt_udp = pkt.as_udp_payload();
                 unsafe {
