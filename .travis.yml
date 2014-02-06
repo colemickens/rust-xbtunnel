@@ -4,13 +4,13 @@ before_install:
 install:
   - sudo apt-get install rust-nightly libpcap-dev
 script:
-  - git clone http://github.com/colemickens/pcapfe;
-  - cd pcapfe
+  - git clone http://github.com/colemickens/rust-pcap;
+  - cd rust-pcap
   - make
   - cd ..
-  - git clone http://github.com/colemickens/pktutil
-  - cd pktutil
+  - git clone http://github.com/colemickens/rust-packet
+  - cd rust-packet
   - make
   - make test
   - cd ..
-  - rustc main.rs -L ./pcapfe -L ./pktutil
+  - rustc main.rs -L ./rust-pcap -L ./rust-packet

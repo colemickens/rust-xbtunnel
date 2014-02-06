@@ -5,10 +5,10 @@
 
 #[feature(globs)];
 
-extern mod native = "native#0.10-pre";
-extern mod extra = "extra#0.10-pre";
-extern mod pcapfe;
-extern mod pktutil;
+extern mod native;
+extern mod extra;
+extern mod pcap;
+extern mod packet;
 
 use std::comm::*;
 
