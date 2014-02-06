@@ -22,8 +22,8 @@ use std::sync::arc::UnsafeArc;
 
 use extra::getopts::*;
 
-use pktutil::*;
-use pcapfe::*;
+use packet::*;
+use pcap::*;
 
 #[start]
 fn start(argc: int, argv: **u8) -> int {
