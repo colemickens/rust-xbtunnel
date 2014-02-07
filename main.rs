@@ -116,7 +116,7 @@ fn packet_capture_inject_loop(dev: &str, capture_chan: Chan<Packet>, inject_port
     let dev2: ~str = dev.to_str();
 
     spawn(proc(){
-        let cap_dev = pcap_open_dev(dev1).unwrap();
+        let cap_dev = pcap_open_dev(dev1).ok().expect("failed to open capture device");
         let mut filter_str = ~"host 0.0.0.1 && udp";
 
         if cap_dev.set_filter(dev1, filter_str).is_err() {
@@ -156,7 +156,7 @@ fn packet_capture_inject_loop(dev: &str, capture_chan: Chan<Packet>, inject_port
     });
 
     spawn(proc(){ // HELP: should I just put this in the "select" loop above on line 83?
-        let cap_dev = pcap_open_dev(dev2).unwrap();
+        let cap_dev = pcap_open_dev(dev2).ok().expect("failed to open capture device2");
         loop {
             let pkt = inject_port.recv();
             let res = cap_dev.inject(pkt.as_raw_packet());
@@ -250,7 +250,7 @@ fn main() -> () {
             let mut xbox_to_socketaddr = HashMap::new();
             let mut byts = [0u8,..65536];
             loop {
-                let (sz, sockaddr) = unsafe { (*udp_sock).recvfrom(byts).unwrap() };
+                let (sz, sockaddr) = unsafe { (*udp_sock).recvfrom(byts).ok().expect("failed to recvfrom") };
                 let pkt = match from_udp_payload(byts.slice_to(sz)) { Some(pkt) => {pkt}, None => {println!("skipping bad packet"); continue;}};
 
                 let new_entry = xbox_to_socketaddr.insert(pkt.src_mac.to_owned(), sockaddr);
@@ -264,7 +264,7 @@ fn main() -> () {
     } else if args.opt_present("join") {
         let remote_host = args.opt_str("join").expect("join requires an argument");
         let saddr: ip::SocketAddr = from_str(remote_host).expect("failed to parse the remote host");
-        let bind_addr: ip::SocketAddr = from_str("0.0.0.0:0").unwrap();
+        let bind_addr: ip::SocketAddr = from_str("0.0.0.0:0").expect("failed to parse outgoing socket addr");
 
         let udp_sock: UdpSocket = UdpSocket::bind(bind_addr).ok().expect("couldn't bind to outgoing udp");
 
@@ -275,7 +275,7 @@ fn main() -> () {
             let udp_sock = udp_recv_arc.get();
             let mut byts = [0u8,..65536];
             loop {
-                let (sz, _sa) = unsafe{ (*udp_sock).recvfrom(byts).unwrap() };
+                let (sz, _sa) = unsafe{ (*udp_sock).recvfrom(byts).ok().expect("failed to recvfrom") };
                 match from_udp_payload(byts.slice_to(sz)) {
                     Some(pkt) => {
                         inject_chan.send(pkt);
