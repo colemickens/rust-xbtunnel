@@ -1,3 +1,5 @@
 .rust
 bin/
 xbtunnnel
+*.dll
+*.exe

@@ -1,12 +1,12 @@
 linux:
 ifeq ($(OS),Windows_NT)
-	(cd ../rust-pcap;   rustc lib.rs -L C:\\WpdPack\\Lib)
-	(cd ../rust-packet; rustc lib.rs -L C:\\WpdPack\\Lib)
-	rustc main.rs -L ../rust-pcap/ -L ../rust-packet -o xbtunnel.exe -L C:\\WpdPack\\Lib
+	(cd ../rust-pcap;   start rustc lib.rs -L C:\WpdPack\Lib)
+	(cd ../rust-packet; start rustc lib.rs -L C:\WpdPack\Lib)
+	start rustc main.rs -L ../rust-pcap/ -L ../rust-packet -o xbtunnel.exe -L C:\\WpdPack\\Lib
 else
 	(cd ../rust-pcap;   rustc lib.rs)
 	(cd ../rust-packet; rustc lib.rs)
-	rustc main.rs -L ../rust-pcap/ -L ../rust-packet -o xbtunnel
+	rustc main.rs -L ../rust-pcap/ -L ../rust-packet -o xbtunnel -L C:\WpdPack\Lib
 endif
 
 host:
