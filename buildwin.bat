@@ -3,7 +3,7 @@ REM But it doesn't. I tried. A lot.
 
 cd ..
 cd rust-pcap
-start rustc lib.rs -L C:\WpdPack\Lib
+start  rustc lib.rs -L C:\WpdPack\Lib
 
 REM It just exits here after rustc returns '0'.
 

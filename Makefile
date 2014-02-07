@@ -1,8 +1,9 @@
-linux:
+all:
 ifeq ($(OS),Windows_NT)
-	(cd ../rust-pcap;   start rustc lib.rs -L C:\WpdPack\Lib)
-	(cd ../rust-packet; start rustc lib.rs -L C:\WpdPack\Lib)
-	start rustc main.rs -L ../rust-pcap/ -L ../rust-packet -o xbtunnel.exe -L C:\WpdPack\Lib
+	# only works in git bash shell
+	#(cd ../rust-pcap;   start /W  rustc lib.rs -L C:\WpdPack\Lib) # same
+	#(cd ../rust-packet; start /W  rustc lib.rs -L C:\WpdPack\Lib) # in git bash this exits immediately and races, weird stuff
+	rustc main.rs -L ../rust-pcap/ -L ../rust-packet -L C:\\WpdPack\\Lib -o xbtunnel.exe
 else
 	(cd ../rust-pcap;   rustc lib.rs)
 	(cd ../rust-packet; rustc lib.rs)
@@ -14,11 +15,3 @@ host:
 
 join:
 	sudo ./xbtunnel --dev enp3s0 --join 0.0.0.0:8602
-
-# under windows:
-#    C:\Users\colemick\TEMP\rust-xbtunnel>"C:\MinGW\msys\1.0\bin\make.exe"
-#    (cd ../rust-pcap;   rustc lib.rs -L C:\\WpdPack\\Lib)
-#    error: couldn't read lib.rs -L C:\WpdPack\Lib: no such file or directory
-#    make.exe": *** [linux] Error 101
-
-# looks like it's treating "lib.rs -L C:\WpdPack\Lib" as a single argument... not sure why.

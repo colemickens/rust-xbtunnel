@@ -7,6 +7,7 @@
 
 extern mod native;
 extern mod extra;
+extern mod getopts;
 extern mod pcap;
 extern mod packet;
 
@@ -20,7 +21,7 @@ use std::io::net::udp::{UdpSocket};
 use std::os;
 use std::sync::arc::UnsafeArc;
 
-use extra::getopts::*;
+use getopts::*;
 
 use packet::*;
 use pcap::*;
@@ -167,9 +168,9 @@ fn packet_capture_inject_loop(dev: &str, capture_chan: Chan<Packet>, inject_port
 fn main() -> () {
     let args = os::args();
     let opts = ~[
-        optflag("host"),
-        optopt("join"),
-        reqopt("dev")
+        optflag("h", "host", "host mode"),
+        optopt("j", "join", "join mode", "0.0.0.0:8602"),
+        reqopt("d", "dev", "device", "enp3s0"),
     ];
     
     let args = match getopts(args.tail(), opts) {
@@ -201,7 +202,7 @@ fn main() -> () {
             ip::SocketAddr{ ip: ip::Ipv4Addr(0,0,0,0),
                 port: 8602 as ip::Port
             }
-        ).expect("can't bind to 8602");
+        ).ok().expect("can't bind to 8602"); // TODO: this is lazy
 
         let (udp_send_arc, udp_recv_arc) = UnsafeArc::new2(udp_sock);
 
@@ -265,7 +266,7 @@ fn main() -> () {
         let saddr: ip::SocketAddr = from_str(remote_host).expect("failed to parse the remote host");
         let bind_addr: ip::SocketAddr = from_str("0.0.0.0:0").unwrap();
 
-        let udp_sock: UdpSocket = UdpSocket::bind(bind_addr).expect("couldn't bind to outgoing udp");
+        let udp_sock: UdpSocket = UdpSocket::bind(bind_addr).ok().expect("couldn't bind to outgoing udp");
 
         let (udp_send_arc, udp_recv_arc) = UnsafeArc::new2(udp_sock);
         println!("senxxxxxxxxxxxxxxxxxxx");
