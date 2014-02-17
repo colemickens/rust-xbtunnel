@@ -5,11 +5,11 @@
 
 #[feature(globs)];
 
-extern mod native;
-extern mod extra;
-extern mod getopts;
-extern mod pcap;
-extern mod packet;
+extern crate native;
+extern crate extra;
+extern crate getopts;
+extern crate pcap;
+extern crate packet;
 
 use std::comm::*;
 
