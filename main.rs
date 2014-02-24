@@ -5,15 +5,16 @@
 
 #[feature(globs)];
 
-extern crate native;
+extern crate collections;
 extern crate extra;
 extern crate getopts;
+extern crate native;
 extern crate pcap;
 extern crate packet;
 
-use std::comm::*;
+use collections::hashmap::*;
 
-use std::hashmap::*;
+use std::comm::*;
 use std::io::net::ip;
 use std::io::net::ip::Ipv4Addr;
 use std::io::net::udp;
@@ -46,7 +47,7 @@ impl Packet {
             src_port:  3074,
             dst_port:  3074,
             length:    00,
-            checksum:  0x0000, // remove this cheat
+            checksum:  0x0000,
         };
 
         udp_hdr.length = (self.payload.len() + 8) as u16;
@@ -56,11 +57,11 @@ impl Packet {
             diff_services: 0x00,
             ecn:           0x00,
             total_len:     00,
-            id:            0x0000, // DOES THIS MATTER? COULD BE MAJOR BUG, DONT REMEMBER
+            id:            0x0000,
             flags:         0x02,
             frag_offset:   0,
             ttl:           64,
-            checksum:      0x0000, // remove this cheat
+            checksum:      0x0000,
             src_ip:        Ipv4Addr(0, 0, 0, 1),
             dst_ip:        Ipv4Addr(0, 0, 0, 1),
             ihl:           5,
@@ -216,7 +217,9 @@ fn main() -> () {
                         if BROADCAST == pkt.dst_mac {
                             for sa in xbox_to_socketaddr_a.values() {
                                 unsafe {
-                                    (*udp_sock).sendto(pkt.as_udp_payload(), *sa);    
+                                    if (*udp_sock).sendto(pkt.as_udp_payload(), *sa).is_err() {
+                                        println!("sendto failed");
+                                    }
                                 }
                             }
                         } else {
@@ -224,7 +227,9 @@ fn main() -> () {
                                 Some(sa) => {
                                     unsafe {
                                         println!("about to send packet");
-                                        (*udp_sock).sendto(pkt.as_udp_payload(), *sa);
+                                        if (*udp_sock).sendto(pkt.as_udp_payload(), *sa).is_err() {
+                                            println!("sendto failed");
+                                        }
                                     }
                                 }
                                 None => { println!("dunna where this goes"); }
@@ -291,7 +296,9 @@ fn main() -> () {
                 let pkt = capture_port.recv();
                 let pkt_udp = pkt.as_udp_payload();
                 unsafe {
-                    (*udp_sock).sendto(pkt_udp, saddr);
+                    if (*udp_sock).sendto(pkt_udp, saddr).is_err() {
+                        println!("sendto failed");
+                    }
                 }
             }
         }
