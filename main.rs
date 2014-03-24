@@ -6,7 +6,6 @@
 #[feature(globs)];
 
 extern crate collections;
-extern crate extra;
 extern crate getopts;
 extern crate native;
 extern crate pcap;
@@ -112,13 +111,14 @@ fn from_udp_payload(payload: &[u8]) -> Option<Packet> {
     }
 }
 
-fn packet_capture_inject_loop(dev: &str, capture_chan: Chan<Packet>, inject_port: Port<Packet>, pcap_update_port: Port<~[u8]>) {
+fn packet_capture_inject_loop(dev: &str, capture_tx: Sender<Packet>, inject_rx: Receiver<Packet>, pcap_update_rx: Receiver<~[u8]>) {
     let dev1: ~str = dev.to_str();
     let dev2: ~str = dev.to_str();
 
     spawn(proc(){
         let cap_dev = pcap_open_dev(dev1).ok().expect("failed to open capture device");
-        let mut filter_str = ~"host 0.0.0.1 && udp";
+        // let mut filter_str = ~"host 0.0.0.1 && udp";
+        let mut filter_str = ~"";
 
         if cap_dev.set_filter(dev1, filter_str).is_err() {
             fail!("couldn't set filter");
@@ -128,7 +128,7 @@ fn packet_capture_inject_loop(dev: &str, capture_chan: Chan<Packet>, inject_port
             match cap_dev.next_packet_ex() {
                 Ok(pcap_pkt) => match from_pcap(pcap_pkt.payload) {
                     Some(pkt) => {
-                        capture_chan.send(pkt);
+                        capture_tx.send(pkt);
                     },
                     None => {
                         println!("bad pkt");
@@ -139,7 +139,7 @@ fn packet_capture_inject_loop(dev: &str, capture_chan: Chan<Packet>, inject_port
                     fail!(format!("{:?}", t));
                 }
             }
-            match pcap_update_port.try_recv() {
+            match pcap_update_rx.try_recv() {
                 Data(addr) => {
                     filter_str = filter_str.append(format!(" && !(ether src {:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X})",
                         addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]));
@@ -159,7 +159,7 @@ fn packet_capture_inject_loop(dev: &str, capture_chan: Chan<Packet>, inject_port
     spawn(proc(){ // HELP: should I just put this in the "select" loop above on line 83?
         let cap_dev = pcap_open_dev(dev2).ok().expect("failed to open capture device2");
         loop {
-            let pkt = inject_port.recv();
+            let pkt = inject_rx.recv();
             let res = cap_dev.inject(pkt.as_raw_packet());
             println!("inject res {}", res);
         }
@@ -189,15 +189,15 @@ fn main() -> () {
 
     let dev = args.opt_str("dev").expect("device is required");
 
-    let (capture_port, capture_chan): (Port<Packet>, Chan<Packet>) = Chan::new();
-    let (inject_port, inject_chan): (Port<Packet>, Chan<Packet>) = Chan::new();
+    let (capture_tx, capture_rx): (Sender<Packet>, Receiver<Packet>, ) = channel();
+    let (inject_tx, inject_rx): (Sender<Packet>, Receiver<Packet>) = channel();
 
-    let (pcap_update_port, pcap_update_chan): (Port<~[u8]>, Chan<~[u8]>) = Chan::new();
+    let (pcap_update_tx, pcap_update_rx): (Sender<~[u8]>, Receiver<~[u8]>) = channel();
     
-    packet_capture_inject_loop(dev, capture_chan, inject_port, pcap_update_port);
+    packet_capture_inject_loop(dev, capture_tx, inject_rx, pcap_update_rx);
 
     if args.opt_present("host") {
-        let (xbox_update_port, xbox_update_chan): (Port<(~[u8], ip::SocketAddr)>, Chan<(~[u8], ip::SocketAddr)>) = Chan::new();
+        let (xbox_update_tx, xbox_update_rx): (Sender<(~[u8], ip::SocketAddr)>, Receiver<(~[u8], ip::SocketAddr)>) = channel();
 
         let udp_sock = udp::UdpSocket::bind(
             ip::SocketAddr{ ip: ip::Ipv4Addr(0,0,0,0),
@@ -211,7 +211,7 @@ fn main() -> () {
             let mut xbox_to_socketaddr_a: HashMap<~[u8], ip::SocketAddr> = HashMap::new();
             let udp_sock = udp_send_arc.get();
             loop {
-                match capture_port.try_recv() {
+                match capture_rx.try_recv() {
                     Data(pkt) => {
                         // check if broadcast
                         if BROADCAST == pkt.dst_mac {
@@ -239,7 +239,7 @@ fn main() -> () {
                     Disconnected => { return; },
                     Empty => { /* skip over, keep going */ }
                 }
-                match xbox_update_port.try_recv() {
+                match xbox_update_rx.try_recv() {
                     Data((src_mac, sockaddr)) => {
                         xbox_to_socketaddr_a.insert(src_mac, sockaddr);
                     },
@@ -249,7 +249,7 @@ fn main() -> () {
             }
         });
 
-        {   // This is the udp_recv loop (writes to inject_chan)
+        {   // This is the udp_recv loop (writes to inject_Sender)
             let udp_sock = udp_recv_arc.get();
 
             let mut xbox_to_socketaddr = HashMap::new();
@@ -260,10 +260,10 @@ fn main() -> () {
 
                 let new_entry = xbox_to_socketaddr.insert(pkt.src_mac.to_owned(), sockaddr);
                 if new_entry {
-                    xbox_update_chan.send((pkt.src_mac.to_owned(), sockaddr));
-                    pcap_update_chan.send(pkt.src_mac.to_owned());
+                    xbox_update_tx.send((pkt.src_mac.to_owned(), sockaddr));
+                    pcap_update_tx.send(pkt.src_mac.to_owned());
                 }
-                inject_chan.send(pkt);
+                inject_tx.send(pkt);
             }
         }
     } else if args.opt_present("join") {
@@ -276,24 +276,24 @@ fn main() -> () {
         let (udp_send_arc, udp_recv_arc) = UnsafeArc::new2(udp_sock);
         println!("senxxxxxxxxxxxxxxxxxxx");
 
-        spawn(proc() { // the udp recv loop (writes to inject chan)
+        spawn(proc() { // the udp recv loop (writes to inject Sender)
             let udp_sock = udp_recv_arc.get();
             let mut byts = [0u8,..65536];
             loop {
                 let (sz, _sa) = unsafe{ (*udp_sock).recvfrom(byts).ok().expect("failed to recvfrom") };
                 match from_udp_payload(byts.slice_to(sz)) {
                     Some(pkt) => {
-                        inject_chan.send(pkt);
+                        inject_tx.send(pkt);
                     },
                     None => { println!("skipping bad udp payload"); }
                 }
             }
         });
 
-        { // the udp send loop (read from capture_chan)
+        { // the udp send loop (read from capture_sender)
             let udp_sock = udp_send_arc.get();
             loop {
-                let pkt = capture_port.recv();
+                let pkt = capture_rx.recv();
                 let pkt_udp = pkt.as_udp_payload();
                 unsafe {
                     if (*udp_sock).sendto(pkt_udp, saddr).is_err() {
