@@ -1,0 +1,10 @@
+[package]
+name = "colemickens-rust-xbtunnel"
+version = "0.0.0"
+authors = [ "cole.mickens@gmail.com" ]
+
+[[bin]]
+name = "xbtunnel"
+
+[dependencies.pnet]
+git = "https://github.com/libpnet/libpnet.git"

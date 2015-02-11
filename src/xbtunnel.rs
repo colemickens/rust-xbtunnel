@@ -1,17 +1,10 @@
-#[crate_id="tunnelrs"];
-#[crate_type="bin"];
-#[desc = "Xbox Tunnel"];
-#[license = "MIT"];
+#![feature(globs)]
 
-#[feature(globs)];
-
-extern crate collections;
 extern crate getopts;
 extern crate native;
-extern crate pcap;
-extern crate packet;
+extern crate pnet;
 
-use collections::hashmap::*;
+use std::collections::hashmap::*;
 
 use std::comm::*;
 use std::io::net::ip;
@@ -19,15 +12,12 @@ use std::io::net::ip::Ipv4Addr;
 use std::io::net::udp;
 use std::io::net::udp::{UdpSocket};
 use std::os;
-use std::sync::arc::UnsafeArc;
 
 use getopts::*;
-
-use packet::*;
-use pcap::*;
+use pnet::*;
 
 #[start]
-fn start(argc: int, argv: **u8) -> int {
+fn start(argc: int, argv: *const *const u8) -> int {
     native::start(argc, argv,  main)
 }
 
@@ -116,7 +106,12 @@ fn packet_capture_inject_loop(dev: &str, capture_tx: Sender<Packet>, inject_rx: 
     let dev2: ~str = dev.to_str();
 
     spawn(proc(){
-        let cap_dev = pcap_open_dev(dev1).ok().expect("failed to open capture device");
+        let interfaces = get_network_interfaces();
+        let cap_dev = interfaces.iter()
+            .filter(|iface| iface.name == *dev1)
+            .next()
+            .unwrap();
+
         // let mut filter_str = ~"host 0.0.0.1 && udp";
         let mut filter_str = ~"";
 
